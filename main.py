@@ -8,6 +8,7 @@ from fastapi import FastAPI, Request, HTTPException
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from datetime import datetime, timezone
 import tempfile
+from fastapi.responses import JSONResponse
 
 from linebot.v3.webhook import WebhookParser
 from linebot.v3.exceptions import InvalidSignatureError
@@ -606,4 +607,50 @@ async def _push_reminder(booking: Dict[str, Any], window: str):
             )
     except Exception as e:
         logger.warning('Push reminder failed: %s', e)
+
+
+@app.get('/healthz')
+async def healthz():
+    # Do not return secrets; only presence and connectivity status
+    status = {
+        'env': {
+            'LINE_CHANNEL_SECRET': bool(os.getenv('LINE_CHANNEL_SECRET')),
+            'LINE_CHANNEL_ACCESS_TOKEN': bool(os.getenv('LINE_CHANNEL_ACCESS_TOKEN')),
+            'GEMINI_API_KEY': bool(os.getenv('GEMINI_API_KEY')),
+            'GOOGLE_SERVICE_ACCOUNT_JSON_or_FILE': bool(os.getenv('GOOGLE_SERVICE_ACCOUNT_JSON') or os.getenv('GOOGLE_APPLICATION_CREDENTIALS')),
+            'GOOGLE_SHEETS_DOCUMENT_ID': bool(os.getenv('GOOGLE_SHEETS_DOCUMENT_ID')),
+            'DEFAULT_GOOGLE_CALENDAR_ID': bool(os.getenv('DEFAULT_GOOGLE_CALENDAR_ID')),
+        },
+        'sheets': {'ok': False, 'error': None},
+        'calendar': {'ok': False, 'error': None},
+    }
+    # Sheets check
+    try:
+        ensure_context()
+        from google.oauth2.service_account import Credentials  # type: ignore
+        import gspread  # type: ignore
+        if os.getenv('GOOGLE_SERVICE_ACCOUNT_JSON') and not os.getenv('GOOGLE_APPLICATION_CREDENTIALS'):
+            # already written to temp at startup
+            pass
+        cred_path = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
+        creds = Credentials.from_service_account_file(cred_path, scopes=['https://www.googleapis.com/auth/spreadsheets'])
+        gc = gspread.authorize(creds)
+        sid = os.getenv('GOOGLE_SHEETS_DOCUMENT_ID')
+        sh = gc.open_by_key(sid)
+        _ = sh.title
+        status['sheets']['ok'] = True
+    except Exception as e:
+        status['sheets']['error'] = str(e)
+    # Calendar check
+    try:
+        from google.oauth2.service_account import Credentials  # type: ignore
+        from googleapiclient.discovery import build  # type: ignore
+        cred_path = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
+        creds = Credentials.from_service_account_file(cred_path, scopes=['https://www.googleapis.com/auth/calendar.readonly'])
+        svc = build('calendar', 'v3', credentials=creds, cache_discovery=False)
+        resp = svc.calendarList().list(maxResults=1).execute()
+        status['calendar']['ok'] = True
+    except Exception as e:
+        status['calendar']['error'] = str(e)
+    return JSONResponse(status_code=200, content=status)
 
