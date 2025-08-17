@@ -180,6 +180,11 @@ async def callback(request: Request):
     body = body_bytes.decode()
 
     logger.info("/callback body received")
+    # Ensure LINE clients exist
+    ensure_context()
+    if not parser or not line_bot_api:
+        logger.warning("LINE credentials not configured; skipping")
+        return "OK"
     try:
         events = parser.parse(body, signature)
     except InvalidSignatureError:
