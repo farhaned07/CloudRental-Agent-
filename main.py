@@ -58,14 +58,15 @@ if sa_json and not os.getenv('GOOGLE_APPLICATION_CREDENTIALS'):
 
 channel_secret = os.getenv("LINE_CHANNEL_SECRET")
 channel_access_token = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
-if not channel_secret or not channel_access_token:
-    print("Specify LINE_CHANNEL_SECRET and LINE_CHANNEL_ACCESS_TOKEN as environment variables.")
-    sys.exit(1)
 
-configuration = Configuration(access_token=channel_access_token)
-async_api_client = AsyncApiClient(configuration)
-line_bot_api = AsyncMessagingApi(async_api_client)
-parser = WebhookParser(channel_secret)
+# Lazy-initialize LINE clients only when creds exist
+line_bot_api = None
+parser = None
+if channel_access_token and channel_secret:
+    configuration = Configuration(access_token=channel_access_token)
+    async_api_client = AsyncApiClient(configuration)
+    line_bot_api = AsyncMessagingApi(async_api_client)
+    parser = WebhookParser(channel_secret)
 
 
 # Data layer
@@ -98,8 +99,15 @@ def _safe_text(text: str) -> TextMessage:
 async def callback_get():
     return "OK"
 
+@app.get("/callback")
+async def callback_get():
+    return "OK"
+
+
 @app.post("/callback")
 async def callback(request: Request):
+    if not parser or not line_bot_api:
+        raise HTTPException(status_code=500, detail="LINE credentials not configured")
     signature = request.headers.get("X-Line-Signature")
     if not signature:
         raise HTTPException(status_code=400, detail="Missing signature")
@@ -481,6 +489,9 @@ def _extract_query_param(data: str, key: str) -> Optional[str]:
 
 # simple reminder job (T-24h and T-2h) running every 10 minutes
 async def send_reminders():
+    if not line_bot_api:
+        logger.warning('Reminders skipped: LINE credentials not configured')
+        return
     try:
         now = datetime.now(timezone.utc)
         upcoming = bookings_repo._read_all()
