@@ -52,7 +52,9 @@ class GeminiNLU:
             return None
 
     def _regex_intent(self, text: str) -> dict:
-        q = text.lower()
+        q = text.lower().strip()
+        # normalize spaces
+        q = ' '.join(q.split())
         if q.startswith("browse"):
             return {"name": "browse", "filters": {}}
         if q.startswith("my bookings"):
@@ -68,17 +70,27 @@ class GeminiNLU:
             return {"name": "cancel", "filters": {"booking_id": m.group(1)}}
         # naive parse for search
         filters = {}
-        b = re.search(r"(\d+)br", q)
+        b = re.search(r"(\d+)\s*(br|bed|beds|bd|bedroom|bedrooms)\b", q)
         if b:
             filters["bedrooms"] = int(b.group(1))
-        m = re.search(r"under\s+(\d+[\d,]*)", q)
+        m = re.search(r"under\s+(\d+[\d,\s]*)", q)
         if m:
-            filters["price_max"] = int(m.group(1).replace(",", ""))
+            filters["price_max"] = int(m.group(1).replace(",", "").replace(" ", ""))
+        m = re.search(r"under\s+(\d+)\s*k\b", q)
+        if m:
+            filters["price_max"] = int(m.group(1)) * 1000
         m = re.search(r"over\s+(\d+[\d,]*)", q)
         if m:
             filters["price_min"] = int(m.group(1).replace(",", ""))
+        m = re.search(r"in\s+([a-z\-\s]+)$", q)
+        if m:
+            filters["neighborhood"] = m.group(1).strip()
         if "condo" in q:
             filters["property_type"] = "condo"
+        if "retail" in q:
+            filters["property_type"] = "retail"
+        if "land" in q:
+            filters["property_type"] = "land"
         if filters:
             return {"name": "search", "filters": filters}
         return {"name": "fallback", "filters": {}}

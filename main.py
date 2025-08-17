@@ -229,7 +229,7 @@ async def _handle_text(event: MessageEvent):
             await line_bot_api.reply_message(
                 ReplyMessageRequest(
                     reply_token=event.reply_token,
-                    messages=[_safe_text("No properties found. Try broadening your search.")]
+                    messages=[_safe_text("No properties found. Try: 'browse' or '2 bed in Ari under 60000'")]
                 )
             )
             return
@@ -348,9 +348,7 @@ async def _handle_text(event: MessageEvent):
     await line_bot_api.reply_message(
         ReplyMessageRequest(
             reply_token=event.reply_token,
-            messages=[_safe_text(
-                "Try: 'browse', 'search 2br in Thonglor under 30k', 'detail <id>', 'book <id>', 'my bookings', 'cancel <booking_id>'"
-            )]
+            messages=[_safe_text("Try: 'browse' or '2 bed in Ari under 60000' or 'book <id>' or 'my bookings'")]
         )
     )
 
