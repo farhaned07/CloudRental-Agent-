@@ -19,6 +19,7 @@ def build_property_card(p: Dict[str, Any], include_actions: bool = False) -> Fle
     bedrooms = p.get("bedrooms", "?")
     bathrooms = p.get("bathrooms", "?")
     address = p.get("address", "")
+    area = p.get("neighborhood", "")
 
     body_contents: List[Any] = []
     if image:
@@ -32,7 +33,7 @@ def build_property_card(p: Dict[str, Any], include_actions: bool = False) -> Fle
             contents=[
                 FlexText(text=title, weight="bold", size="lg", wrap=True),
                 FlexText(text=f"฿{price} • {bedrooms}BR/{bathrooms}BA", size="sm", color="#666666", wrap=True),
-                FlexText(text=address, size="sm", color="#888888", wrap=True),
+                FlexText(text=area or address, size="sm", color="#888888", wrap=True),
             ],
         )
     )

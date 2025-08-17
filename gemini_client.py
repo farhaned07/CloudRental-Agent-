@@ -14,26 +14,28 @@ class GeminiNLU:
             "gemini-pro:generateContent?key=" + self.api_key
         )
 
-    async def parse_intent(self, user_text: str) -> dict:
+    async def parse_intent(self, user_text: str, session_context: dict | None = None) -> dict:
         # Try LLM first
-        intent = await self._parse_with_gemini(user_text)
+        intent = await self._parse_with_gemini(user_text, session_context or {})
         if intent:
             return intent
         # Fallback to regex
         return self._regex_intent(user_text)
 
-    async def _parse_with_gemini(self, user_text: str) -> dict:
+    async def _parse_with_gemini(self, user_text: str, session_context: dict) -> dict:
         system_prompt = (
-            "You are an intent parser for a real estate chatbot. "
-            "Extract a single intent and normalized filters as JSON. "
-            "Supported intents: browse, search, detail, book, my_bookings, cancel, fallback. "
-            "Filters can include: price_max, price_min, bedrooms, bathrooms, neighborhood, property_type, property_id. "
-            "For cancel intent include booking_id if present. "
-            "Return ONLY a minified JSON object like {\"name\":\"search\",\"filters\":{...}} with no extra text."
+            "You are an intent parser for a real estate chatbot.\n"
+            "Task: extract one intent and filters as minified JSON.\n"
+            "Intents: browse, search, detail, book, my_bookings, cancel, fallback.\n"
+            "Filters: price_max, price_min, bedrooms, bathrooms, neighborhood (area), property_type, property_id, booking_id.\n"
+            "Use conversation context if present (last area/type/budget).\n"
+            "Answer ONLY JSON like {\"name\":\"search\",\"filters\":{...}} with no prose."
         )
         payload = {
             "contents": [
-                {"role": "user", "parts": [{"text": system_prompt + "\nUser: " + user_text}]}
+                {"role": "user", "parts": [{"text": system_prompt}]},
+                {"role": "user", "parts": [{"text": "Context:" + json.dumps(session_context or {})}]},
+                {"role": "user", "parts": [{"text": "User:" + user_text}]}
             ]
         }
 

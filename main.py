@@ -38,6 +38,7 @@ from repositories.properties_repo import PropertiesRepository
 from repositories.bookings_repo import BookingsRepository
 from repositories.agents_repo import AgentsRepository
 from repositories.calendar_repo import CalendarRepository
+from repositories.sessions_repo import SessionsRepository
 from flex_templates import (
     build_property_card,
     build_property_carousel,
@@ -78,6 +79,7 @@ properties_repo = None
 bookings_repo = None
 agents_repo = None
 calendar_repo = None
+sessions_repo = None
 
 # NLU (lazy)
 gemini = None
@@ -135,6 +137,11 @@ def ensure_context():
     if calendar_repo is None:
         try:
             calendar_repo = CalendarRepository()
+        except Exception:
+            pass
+    if sessions_repo is None:
+        try:
+            sessions_repo = SessionsRepository()
         except Exception:
             pass
 
@@ -208,7 +215,8 @@ async def _handle_text(event: MessageEvent):
 
     try:
         ensure_context()
-        intent = await gemini.parse_intent(user_text)
+        ctx = sessions_repo.get_context(user_id) if sessions_repo else {}
+        intent = await gemini.parse_intent(user_text, ctx)
     except Exception as e:
         logger.exception("Gemini intent parsing failed: %s", e)
         intent = {"name": "fallback", "filters": {}}
@@ -256,6 +264,14 @@ async def _handle_text(event: MessageEvent):
                 messages=[FlexMessage(alt_text="Property results", contents=car)]
             )
         )
+        # update session context
+        if sessions_repo is not None:
+            new_ctx = ctx if isinstance(ctx, dict) else {}
+            new_ctx.update({
+                'last_filters': filters,
+                'last_action': name,
+            })
+            sessions_repo.set_context(user_id, new_ctx)
         return
 
     if name == "detail":
