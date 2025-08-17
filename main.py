@@ -69,14 +69,14 @@ if channel_access_token and channel_secret:
     parser = WebhookParser(channel_secret)
 
 
-# Data layer
-properties_repo = PropertiesRepository()
-bookings_repo = BookingsRepository()
-agents_repo = AgentsRepository()
-calendar_repo = CalendarRepository()
+# Data layer (lazy init for serverless)
+properties_repo = None
+bookings_repo = None
+agents_repo = None
+calendar_repo = None
 
-# NLU
-gemini = GeminiNLU()
+# NLU (lazy)
+gemini = None
 
 
 app = FastAPI()
@@ -93,11 +93,67 @@ def _safe_text(text: str) -> TextMessage:
     return TextMessage(text=text[:4900])
 
 
+def ensure_context():
+    """Lazily initialize external clients and repositories."""
+    global line_bot_api, parser
+    global properties_repo, bookings_repo, agents_repo, calendar_repo, gemini
+
+    # LINE
+    if line_bot_api is None or parser is None:
+        cs = os.getenv("LINE_CHANNEL_SECRET")
+        cat = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
+        if cs and cat:
+            configuration = Configuration(access_token=cat)
+            api_client = AsyncApiClient(configuration)
+            line_bot_api = AsyncMessagingApi(api_client)
+            parser = WebhookParser(cs)
+
+    # Google-backed repos
+    if properties_repo is None:
+        try:
+            # Will raise if required env missing
+            _ = os.environ["GOOGLE_SHEETS_DOCUMENT_ID"]
+            properties_repo = PropertiesRepository()
+        except Exception:
+            pass
+    if bookings_repo is None:
+        try:
+            _ = os.environ["GOOGLE_SHEETS_DOCUMENT_ID"]
+            bookings_repo = BookingsRepository()
+        except Exception:
+            pass
+    if agents_repo is None:
+        try:
+            _ = os.environ["GOOGLE_SHEETS_DOCUMENT_ID"]
+            agents_repo = AgentsRepository()
+        except Exception:
+            pass
+    if calendar_repo is None:
+        try:
+            calendar_repo = CalendarRepository()
+        except Exception:
+            pass
+
+    # Gemini
+    if gemini is None:
+        try:
+            gemini_key = os.getenv("GEMINI_API_KEY")
+            if gemini_key:
+                gemini_local = GeminiNLU()
+                gemini = gemini_local
+        except Exception:
+            pass
+
+
 
 
 @app.get("/callback")
 async def callback_get():
-    return "OK"
+    try:
+        ensure_context()
+        return "OK"
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/callback")
 async def callback_get():
@@ -106,6 +162,7 @@ async def callback_get():
 
 @app.post("/callback")
 async def callback(request: Request):
+    ensure_context()
     if not parser or not line_bot_api:
         raise HTTPException(status_code=500, detail="LINE credentials not configured")
     signature = request.headers.get("X-Line-Signature")
@@ -133,10 +190,12 @@ async def callback(request: Request):
 
 
 async def _handle_text(event: MessageEvent):
+    ensure_context()
     user_text = event.message.text.strip()
     user_id = getattr(getattr(event, "source", None), "user_id", None)
 
     try:
+        ensure_context()
         intent = await gemini.parse_intent(user_text)
     except Exception as e:
         logger.exception("Gemini intent parsing failed: %s", e)
@@ -286,6 +345,7 @@ async def _handle_text(event: MessageEvent):
 
 async def _handle_postback(event: PostbackEvent):
     data = event.postback.data or ""
+    ensure_context()
     params = getattr(event.postback, "params", None)
 
     # booking datetime chosen
