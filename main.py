@@ -179,10 +179,15 @@ async def callback(request: Request):
     body_bytes = await request.body()
     body = body_bytes.decode()
 
+    logger.info("/callback body received")
     try:
         events = parser.parse(body, signature)
     except InvalidSignatureError:
         raise HTTPException(status_code=400, detail="Invalid signature")
+    except Exception as e:
+        logger.exception("Webhook parse error: %s", e)
+        # Acknowledge to avoid LINE retry storms
+        return "OK"
 
     for event in events:
         try:
