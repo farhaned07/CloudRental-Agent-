@@ -92,6 +92,12 @@ def _safe_text(text: str) -> TextMessage:
     return TextMessage(text=text[:4900])
 
 
+
+
+@app.get("/callback")
+async def callback_get():
+    return "OK"
+
 @app.post("/callback")
 async def callback(request: Request):
     signature = request.headers.get("X-Line-Signature")
