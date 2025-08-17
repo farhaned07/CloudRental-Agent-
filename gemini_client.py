@@ -9,9 +9,10 @@ class GeminiNLU:
         self.api_key = os.getenv("GEMINI_API_KEY")
         if not self.api_key:
             raise RuntimeError("GEMINI_API_KEY is required")
+        model = os.getenv("GEMINI_MODEL", "gemini-1.5-flash-latest")
         self.endpoint = (
             "https://generativelanguage.googleapis.com/v1beta/models/" \
-            "gemini-pro:generateContent?key=" + self.api_key
+            + model + ":generateContent?key=" + self.api_key
         )
 
     async def parse_intent(self, user_text: str, session_context: dict | None = None) -> dict:
