@@ -1,0 +1,11 @@
+line-bot-sdk
+fastapi
+uvicorn[standard]
+gspread
+google-auth
+requests
+python-dateutil
+aiohttp
+google-api-python-client
+google-auth-httplib2
+apscheduler
