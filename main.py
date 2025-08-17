@@ -216,6 +216,16 @@ async def _handle_text(event: MessageEvent):
     name = intent.get("name") or "fallback"
     filters = intent.get("filters") or {}
 
+    # Smalltalk / greeting
+    if name == "fallback" and user_text.lower() in ("hi", "hello", "hey", "help", "สวัสดี"):
+        await line_bot_api.reply_message(
+            ReplyMessageRequest(
+                reply_token=event.reply_token,
+                messages=[_safe_text("Hi! Try 'browse' or '2 bed in Ari under 60000' or 'book <id>'")]
+            )
+        )
+        return
+
     if name in ("browse", "search"):
         # pagination cursor (0-based index)
         cursor = 0

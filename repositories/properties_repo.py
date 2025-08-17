@@ -62,10 +62,26 @@ class PropertiesRepository:
         price_max = filters.get("price_max")
         bedrooms = filters.get("bedrooms")
         bathrooms = filters.get("bathrooms")
-        nbh = (filters.get("neighborhood") or "").lower()
+        area = (filters.get("neighborhood") or filters.get("area") or "").strip().lower()
         ptype = (filters.get("property_type") or "").lower()
 
+        # normalize property type synonyms
+        type_map = {
+            "retail": ["retail", "shop", "shop house", "shophouse", "commercial"],
+            "condo": ["condo", "apartment", "คอนโด"],
+            "land": ["land", "ที่ดิน"],
+        }
+        type_targets: List[str] = []
+        if ptype:
+            for k, vals in type_map.items():
+                if ptype == k or ptype in vals:
+                    type_targets = [k] + vals
+                    break
+            if not type_targets:
+                type_targets = [ptype]
+
         def ok(r: Dict[str, Any]) -> bool:
+            # price
             try:
                 price = int(str(r.get("price", 0)).replace(",", ""))
             except Exception:
@@ -74,15 +90,32 @@ class PropertiesRepository:
                 return False
             if price_max is not None and price > int(price_max):
                 return False
-            if bedrooms is not None and str(r.get("bedrooms")) != str(bedrooms):
-                return False
-            if bathrooms is not None and str(r.get("bathrooms")) != str(bathrooms):
-                return False
-            if nbh and nbh not in str(r.get("neighborhood", "")).lower():
-                return False
-            if ptype and ptype not in str(r.get("type", "")).lower():
-                return False
+            # bedrooms/bathrooms (optional in your sheet; skip if blank)
+            if bedrooms is not None and str(r.get("bedrooms") or "").strip():
+                if str(r.get("bedrooms")) != str(bedrooms):
+                    return False
+            if bathrooms is not None and str(r.get("bathrooms") or "").strip():
+                if str(r.get("bathrooms")) != str(bathrooms):
+                    return False
+            # area match in neighborhood OR address OR title
+            if area:
+                hay = " ".join([
+                    str(r.get("neighborhood", "")),
+                    str(r.get("address", "")),
+                    str(r.get("title", "")),
+                ]).lower()
+                if area not in hay:
+                    return False
+            # property type synonyms
+            if type_targets:
+                hay2 = str(r.get("type", "")).lower()
+                if not any(t in hay2 for t in type_targets):
+                    return False
             return True
 
-        return [r for r in rows if ok(r)]
+        results = [r for r in rows if ok(r)]
+        # graceful degradation: if area specified but no result, drop bedrooms/bathrooms first, then price
+        if not results and area:
+            results = [r for r in rows if area in (" ".join([str(r.get("neighborhood","")), str(r.get("address","")), str(r.get("title",""))]).lower())]
+        return results
 
