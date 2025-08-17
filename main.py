@@ -71,11 +71,6 @@ channel_access_token = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
 # Lazy-initialize LINE clients only when creds exist
 line_bot_api = None
 parser = None
-if channel_access_token and channel_secret:
-    configuration = Configuration(access_token=channel_access_token)
-    async_api_client = AsyncApiClient(configuration)
-    line_bot_api = AsyncMessagingApi(async_api_client)
-    parser = WebhookParser(channel_secret)
 
 
 # Data layer (lazy init for serverless)
@@ -163,10 +158,6 @@ async def callback_get():
         return "OK"
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/callback")
-async def callback_get():
-    return "OK"
 
 
 @app.post("/callback")
