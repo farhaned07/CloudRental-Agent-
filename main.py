@@ -8,6 +8,7 @@ from fastapi import FastAPI, Request, HTTPException
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from datetime import datetime, timezone
 import tempfile
+import base64
 from fastapi.responses import JSONResponse
 
 from linebot.v3.webhook import WebhookParser
@@ -52,6 +53,13 @@ logger = logging.getLogger("realestate-bot")
 
 # Allow service account JSON injection for serverless
 sa_json = os.getenv('GOOGLE_SERVICE_ACCOUNT_JSON')
+if not sa_json:
+    b64 = os.getenv('GOOGLE_SERVICE_ACCOUNT_JSON_B64')
+    if b64:
+        try:
+            sa_json = base64.b64decode(b64).decode()
+        except Exception:
+            sa_json = None
 if sa_json and not os.getenv('GOOGLE_APPLICATION_CREDENTIALS'):
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix='.json')
     tmp.write(sa_json.encode()); tmp.flush(); tmp.close()
