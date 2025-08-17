@@ -178,13 +178,25 @@ async def callback(request: Request):
         raise HTTPException(status_code=400, detail="Invalid signature")
 
     for event in events:
-        if isinstance(event, MessageEvent) and isinstance(event.message, TextMessageContent):
-            await _handle_text(event)
-        elif isinstance(event, PostbackEvent):
-            await _handle_postback(event)
-        else:
-            # Ignore other events for now
-            continue
+        try:
+            if isinstance(event, MessageEvent) and isinstance(event.message, TextMessageContent):
+                await _handle_text(event)
+            elif isinstance(event, PostbackEvent):
+                await _handle_postback(event)
+            else:
+                # Ignore other events for now
+                continue
+        except Exception as e:
+            logger.exception("Callback handler error: %s", e)
+            try:
+                await line_bot_api.reply_message(
+                    ReplyMessageRequest(
+                        reply_token=event.reply_token,
+                        messages=[_safe_text("Sorry, something went wrong. Please try again.")]
+                    )
+                )
+            except Exception:
+                pass
 
     return "OK"
 

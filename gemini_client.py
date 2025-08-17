@@ -37,16 +37,19 @@ class GeminiNLU:
             ]
         }
 
-        async with aiohttp.ClientSession() as session:
-            async with session.post(self.endpoint, json=payload, timeout=20) as resp:
-                if resp.status != 200:
-                    return None
-                data = await resp.json()
-                try:
-                    text = data["candidates"][0]["content"]["parts"][0]["text"]
-                    return json.loads(text)
-                except Exception:
-                    return None
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(self.endpoint, json=payload, timeout=20) as resp:
+                    if resp.status != 200:
+                        return None
+                    data = await resp.json()
+                    try:
+                        text = data["candidates"][0]["content"]["parts"][0]["text"]
+                        return json.loads(text)
+                    except Exception:
+                        return None
+        except Exception:
+            return None
 
     def _regex_intent(self, text: str) -> dict:
         q = text.lower()
