@@ -9,3 +9,5 @@ aiohttp
 google-api-python-client
 google-auth-httplib2
 apscheduler
+
+pydantic>=2.4,<3
